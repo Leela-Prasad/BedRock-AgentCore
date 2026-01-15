@@ -1,0 +1,34 @@
+Install UV
+pip install uv
+
+Install crewai
+uv tool install crewai
+
+Adds ~/.local/bin to path variable
+uv tool update-shell
+
+Lists all dependencies
+uv tool list
+
+
+Creating Crew
+crewai create crew vacation_planner
+
+Locking dependencies
+crewai install
+
+uv add boto3 (Needed for bedrock)
+
+Running crew
+crewai run
+
+
+Streamlit
+uv add streamlit
+
+streamlit run streamlitui.py
+
+
+Building docker image
+docker buildx create --use
+docker buildx build --platform linux/arm64 -t 117915829123.dkr.ecr.ap-south-1.amazonaws.com/vaction-planner01:latest --push .
