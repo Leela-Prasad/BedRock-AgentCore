@@ -3,7 +3,9 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai_tools import SerperDevTool
 from typing import List
+import boto3
 from datetime import datetime
+import uuid
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 # If you want to run a snippet of code before or after the crew starts,
 # you can use the @before_kickoff and @after_kickoff decorators
@@ -12,6 +14,7 @@ from bedrock_agentcore.runtime import BedrockAgentCoreApp
 tool = SerperDevTool()
 
 app = BedrockAgentCoreApp()
+client = boto3.client("bedrock-agentcore", region_name='ap-south-1')
 
 @CrewBase
 class VacationPlanner():
@@ -81,8 +84,51 @@ def agent_invocation(payload, context):
         user_input = payload.get("topic")
         crew = VacationPlanner().crew()
         
+        # Retrieve Past Memory
+        session_id = getattr(context, "sessionId", "default_session")
+        history = client.list_events(
+            memoryId="",
+            sessionId=session_id,
+            actorId="user",
+            maxResults=10
+        )
+        
+        #Format the date to iso format (Crew AI requirement)
+        events = history.get("events", [])
+        formatted_history = []
+        for event in events:
+            formatted_event = {}
+            for key, value in event.items():
+                if isinstance(value, datetime):
+                    formatted_event[key] = value.isoformat()
+                else:
+                    formatted_event[key] = value
+            formatted_history.append(formatted_event)
+        
         # Run the crew
-        result = crew.kickoff(inputs={"topic": user_input})
+        result = crew.kickoff(inputs={"topic": user_input, "previous_conversations": formatted_history})
+        
+        client.create_event(
+            memoryId="",
+            actorId="user",
+            sessionId=session_id,
+            eventTimestamp=datetime.utcnow(),
+            payload=[
+                {
+                    "conversational": {
+                        "content": {"text": user_input},
+                        "role": "USER"
+                    }
+                },
+                {
+                    "conversational": {
+                        "content": {"text": result.raw},
+                        "role": "ASSISTANT"
+                    }
+                }
+            ],
+            clientToken=str(uuid.uuid4())
+        )
         
         print(f"Result :: {result.raw}")
         # Return the result
